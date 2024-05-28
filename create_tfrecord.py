@@ -1,21 +1,9 @@
-"""
-Usage:
-  # From tensorflow/models/
-  # Create train data:
-  python generate_tfrecord.py --csv_input=images/train_labels.csv --image_dir=images/train --output_path=train.record
-
-  # Create test data:
-  python generate_tfrecord.py --csv_input=images/test_labels.csv  --image_dir=images/test --output_path=test.record
-"""
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import
-
+from __future__ import division, print_function, absolute_import
 import os
 import io
 import pandas as pd
-
 from tensorflow.python.framework.versions import VERSION
+
 if VERSION >= "2.0.0a0":
     import tensorflow.compat.v1 as tf
 else:
@@ -23,7 +11,7 @@ else:
 
 from PIL import Image
 from object_detection.utils import dataset_util
-from collections import namedtuple, OrderedDict
+from collections import namedtuple
 
 flags = tf.app.flags
 flags.DEFINE_string('csv_input', '', 'Path to the CSV input')
@@ -37,7 +25,6 @@ def split(df, group):
     gb = df.groupby(group)
     return [data(filename, gb.get_group(x)) for filename, x in zip(gb.groups.keys(), gb.groups)]
 
-
 def create_tf_example(group, path):
     with tf.gfile.GFile(os.path.join(path, '{}'.format(group.filename)), 'rb') as fid:
         encoded_jpg = fid.read()
@@ -47,12 +34,7 @@ def create_tf_example(group, path):
 
     filename = group.filename.encode('utf8')
     image_format = b'jpg'
-    xmins = []
-    xmaxs = []
-    ymins = []
-    ymaxs = []
-    classes_text = []
-    classes = []
+    xmins, xmaxs, ymins, ymaxs, classes_text, classes = [], [], [], [], [], []
 
     labels = []
     with open(FLAGS.labelmap, 'r') as f:
@@ -64,7 +46,7 @@ def create_tf_example(group, path):
         ymins.append(row['ymin'] / height)
         ymaxs.append(row['ymax'] / height)
         classes_text.append(row['class'].encode('utf8'))
-        classes.append(int(labels.index(row['class'])+1))
+        classes.append(int(labels.index(row['class']) + 1))
 
     tf_example = tf.train.Example(features=tf.train.Features(feature={
         'image/height': dataset_util.int64_feature(height),
@@ -82,8 +64,21 @@ def create_tf_example(group, path):
     }))
     return tf_example
 
-
 def main(_):
+    # Print the paths for debugging
+    print(f"CSV Input Path: {FLAGS.csv_input}")
+    print(f"Labelmap Path: {FLAGS.labelmap}")
+    print(f"Image Directory: {FLAGS.image_dir}")
+    print(f"Output Path: {FLAGS.output_path}")
+
+    # Check if files and directories exist
+    if not os.path.isfile(FLAGS.csv_input):
+        raise FileNotFoundError(f"CSV input file {FLAGS.csv_input} not found.")
+    if not os.path.isfile(FLAGS.labelmap):
+        raise FileNotFoundError(f"Labelmap file {FLAGS.labelmap} not found.")
+    if not os.path.isdir(FLAGS.image_dir):
+        raise NotADirectoryError(f"Image directory {FLAGS.image_dir} not found.")
+    
     # Load and prepare data
     writer = tf.python_io.TFRecordWriter(FLAGS.output_path)
     path = os.path.join(os.getcwd(), FLAGS.image_dir)
@@ -105,7 +100,7 @@ def main(_):
         labels = [line.strip() for line in f.readlines()]
     
     path_to_labelpbtxt = os.path.join(os.getcwd(), 'labelmap.pbtxt')
-    with open(path_to_labelpbtxt,'w') as f:
+    with open(path_to_labelpbtxt, 'w') as f:
         for i, label in enumerate(labels):
             f.write('item {\n' +
                     '  id: %d\n' % (i + 1) +

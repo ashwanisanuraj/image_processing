@@ -34,8 +34,8 @@ print('Total images: %d' % file_num)
 train_percent = 0.8  # 80% of the files go to train
 val_percent = 0.1 # 10% go to validation
 test_percent = 0.1 # 10% go to test
-train_num = int(file_num*train_percent)
-val_num = int(file_num*val_percent)
+train_num = int(file_num * train_percent)
+val_num = int(file_num * val_percent)
 test_num = file_num - train_num - val_num
 print('Images moving to train: %d' % train_num)
 print('Images moving to validation: %d' % val_num)
@@ -47,7 +47,10 @@ def move_file(move_me, destination_path):
     parent_path = move_me.parent
     xml_fn = base_fn + '.xml'
     
+    # Move image file
     os.rename(move_me, os.path.join(destination_path, fn))
+    
+    # Move XML file if it exists
     xml_file_path = os.path.join(parent_path, xml_fn)
     if os.path.exists(xml_file_path):
         os.rename(xml_file_path, os.path.join(destination_path, xml_fn))

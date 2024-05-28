@@ -1,29 +1,12 @@
-"""
-Usage:
-  # From tensorflow/models/
-  # Create train data:
-  python generate_tfrecord.py --csv_input=images/train_labels.csv --image_dir=images/train --output_path=train.record
-
-  # Create test data:
-  python generate_tfrecord.py --csv_input=images/test_labels.csv  --image_dir=images/test --output_path=test.record
-"""
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import
-
+from __future__ import division, print_function, absolute_import
 import os
 import io
 import pandas as pd
 
-from tensorflow.python.framework.versions import VERSION
-if VERSION >= "2.0.0a0":
-    import tensorflow.compat.v1 as tf
-else:
-    import tensorflow as tf
-
+import tensorflow as tf
 from PIL import Image
 from object_detection.utils import dataset_util
-from collections import namedtuple, OrderedDict
+from collections import namedtuple
 
 flags = tf.app.flags
 flags.DEFINE_string('csv_input', '', 'Path to the CSV input')
@@ -37,9 +20,8 @@ def split(df, group):
     gb = df.groupby(group)
     return [data(filename, gb.get_group(x)) for filename, x in zip(gb.groups.keys(), gb.groups)]
 
-
 def create_tf_example(group, path):
-    with tf.gfile.GFile(os.path.join(path, '{}'.format(group.filename)), 'rb') as fid:
+    with tf.io.gfile.GFile(os.path.join(path, '{}'.format(group.filename)), 'rb') as fid:
         encoded_jpg = fid.read()
     encoded_jpg_io = io.BytesIO(encoded_jpg)
     image = Image.open(encoded_jpg_io)
@@ -82,10 +64,22 @@ def create_tf_example(group, path):
     }))
     return tf_example
 
-
 def main(_):
+    # Ensure the output directory exists
+    output_dir = os.path.dirname(FLAGS.output_path)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Verify input CSV file exists
+    if not os.path.isfile(FLAGS.csv_input):
+        raise FileNotFoundError(f"The specified CSV file {FLAGS.csv_input} does not exist.")
+
+    # Verify image directory exists
+    if not os.path.isdir(FLAGS.image_dir):
+        raise NotADirectoryError(f"The specified image directory {FLAGS.image_dir} does not exist.")
+
     # Load and prepare data
-    writer = tf.python_io.TFRecordWriter(FLAGS.output_path)
+    writer = tf.io.TFRecordWriter(FLAGS.output_path)
     path = os.path.join(os.getcwd(), FLAGS.image_dir)
     examples = pd.read_csv(FLAGS.csv_input)
 
@@ -101,6 +95,9 @@ def main(_):
 
     # Create labelmap.pbtxt file
     path_to_labeltxt = os.path.join(os.getcwd(), FLAGS.labelmap)
+    if not os.path.isfile(path_to_labeltxt):
+        raise FileNotFoundError(f"The specified labelmap file {path_to_labeltxt} does not exist.")
+    
     with open(path_to_labeltxt, 'r') as f:
         labels = [line.strip() for line in f.readlines()]
     
@@ -114,4 +111,4 @@ def main(_):
                     '\n')
 
 if __name__ == '__main__':
-    tf.app.run()
+    tf.compat.v1.app.run()

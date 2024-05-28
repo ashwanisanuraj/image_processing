@@ -14,17 +14,10 @@ Path(val_path).mkdir(parents=True, exist_ok=True)
 Path(test_path).mkdir(parents=True, exist_ok=True)
 
 # Get list of all images
-jpeg_file_list = [path for path in Path(image_path).rglob('*.jpeg')]
-jpg_file_list = [path for path in Path(image_path).rglob('*.jpg')]
-png_file_list = [path for path in Path(image_path).rglob('*.png')]
-bmp_file_list = [path for path in Path(image_path).rglob('*.bmp')]
-
-if sys.platform == 'linux':
-    JPEG_file_list = [path for path in Path(image_path).rglob('*.JPEG')]
-    JPG_file_list = [path for path in Path(image_path).rglob('*.JPG')]
-    file_list = jpg_file_list + JPG_file_list + png_file_list + bmp_file_list + JPEG_file_list + jpeg_file_list
-else:
-    file_list = jpg_file_list + png_file_list + bmp_file_list + jpeg_file_list
+image_extensions = ['*.jpeg', '*.jpg', '*.png', '*.bmp', '*.JPEG', '*.JPG']
+file_list = []
+for ext in image_extensions:
+    file_list.extend(Path(image_path).rglob(ext))
 
 file_num = len(file_list)
 print('Total images: %d' % file_num)

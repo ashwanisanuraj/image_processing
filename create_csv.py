@@ -1,114 +1,36 @@
-from __future__ import division, print_function, absolute_import
+# Script to create CSV data file from Pascal VOC annotation files
+# Based off code from GitHub user datitran: https://github.com/datitran/raccoon_dataset/blob/master/xml_to_csv.py
+
 import os
-import io
+import glob
 import pandas as pd
+import xml.etree.ElementTree as ET
 
-import tensorflow as tf
-from PIL import Image
-from object_detection.utils import dataset_util
-from collections import namedtuple
+def xml_to_csv(path):
+    xml_list = []
+    for xml_file in glob.glob(path + '/*.xml'):
+        tree = ET.parse(xml_file)
+        root = tree.getroot()
+        for member in root.findall('object'):
+            value = (root.find('filename').text,
+                     int(root.find('size')[0].text),
+                     int(root.find('size')[1].text),
+                     member[0].text,
+                     int(member[4][0].text),
+                     int(member[4][1].text),
+                     int(member[4][2].text),
+                     int(member[4][3].text)
+                     )
+            xml_list.append(value)
+    column_name = ['filename', 'width', 'height', 'class', 'xmin', 'ymin', 'xmax', 'ymax']
+    xml_df = pd.DataFrame(xml_list, columns=column_name)
+    return xml_df
 
-flags = tf.app.flags
-flags.DEFINE_string('csv_input', '', 'Path to the CSV input')
-flags.DEFINE_string('labelmap', '', 'Path to the labelmap file')
-flags.DEFINE_string('image_dir', '', 'Path to the image directory')
-flags.DEFINE_string('output_path', '', 'Path to output TFRecord')
-FLAGS = flags.FLAGS
+def main():
+    for folder in ['train','validation']:
+        image_path = os.path.join(os.getcwd(), ('images/' + folder))
+        xml_df = xml_to_csv(image_path)
+        xml_df.to_csv(('images/' + folder + '_labels.csv'), index=None)
+        print('Successfully converted xml to csv.')
 
-def split(df, group):
-    data = namedtuple('data', ['filename', 'object'])
-    gb = df.groupby(group)
-    return [data(filename, gb.get_group(x)) for filename, x in zip(gb.groups.keys(), gb.groups)]
-
-def create_tf_example(group, path):
-    with tf.io.gfile.GFile(os.path.join(path, '{}'.format(group.filename)), 'rb') as fid:
-        encoded_jpg = fid.read()
-    encoded_jpg_io = io.BytesIO(encoded_jpg)
-    image = Image.open(encoded_jpg_io)
-    width, height = image.size
-
-    filename = group.filename.encode('utf8')
-    image_format = b'jpg'
-    xmins = []
-    xmaxs = []
-    ymins = []
-    ymaxs = []
-    classes_text = []
-    classes = []
-
-    labels = []
-    with open(FLAGS.labelmap, 'r') as f:
-        labels = [line.strip() for line in f.readlines()]
-
-    for index, row in group.object.iterrows():
-        xmins.append(row['xmin'] / width)
-        xmaxs.append(row['xmax'] / width)
-        ymins.append(row['ymin'] / height)
-        ymaxs.append(row['ymax'] / height)
-        classes_text.append(row['class'].encode('utf8'))
-        classes.append(int(labels.index(row['class'])+1))
-
-    tf_example = tf.train.Example(features=tf.train.Features(feature={
-        'image/height': dataset_util.int64_feature(height),
-        'image/width': dataset_util.int64_feature(width),
-        'image/filename': dataset_util.bytes_feature(filename),
-        'image/source_id': dataset_util.bytes_feature(filename),
-        'image/encoded': dataset_util.bytes_feature(encoded_jpg),
-        'image/format': dataset_util.bytes_feature(image_format),
-        'image/object/bbox/xmin': dataset_util.float_list_feature(xmins),
-        'image/object/bbox/xmax': dataset_util.float_list_feature(xmaxs),
-        'image/object/bbox/ymin': dataset_util.float_list_feature(ymins),
-        'image/object/bbox/ymax': dataset_util.float_list_feature(ymaxs),
-        'image/object/class/text': dataset_util.bytes_list_feature(classes_text),
-        'image/object/class/label': dataset_util.int64_list_feature(classes),
-    }))
-    return tf_example
-
-def main(_):
-    # Ensure the output directory exists
-    output_dir = os.path.dirname(FLAGS.output_path)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    # Verify input CSV file exists
-    if not os.path.isfile(FLAGS.csv_input):
-        raise FileNotFoundError(f"The specified CSV file {FLAGS.csv_input} does not exist.")
-
-    # Verify image directory exists
-    if not os.path.isdir(FLAGS.image_dir):
-        raise NotADirectoryError(f"The specified image directory {FLAGS.image_dir} does not exist.")
-
-    # Load and prepare data
-    writer = tf.io.TFRecordWriter(FLAGS.output_path)
-    path = os.path.join(os.getcwd(), FLAGS.image_dir)
-    examples = pd.read_csv(FLAGS.csv_input)
-
-    # Create TFRecord files
-    grouped = split(examples, 'filename')
-    for group in grouped:
-        tf_example = create_tf_example(group, path)
-        writer.write(tf_example.SerializeToString())
-
-    writer.close()
-    output_path = os.path.join(os.getcwd(), FLAGS.output_path)
-    print('Successfully created the TFRecords: {}'.format(output_path))
-
-    # Create labelmap.pbtxt file
-    path_to_labeltxt = os.path.join(os.getcwd(), FLAGS.labelmap)
-    if not os.path.isfile(path_to_labeltxt):
-        raise FileNotFoundError(f"The specified labelmap file {path_to_labeltxt} does not exist.")
-    
-    with open(path_to_labeltxt, 'r') as f:
-        labels = [line.strip() for line in f.readlines()]
-    
-    path_to_labelpbtxt = os.path.join(os.getcwd(), 'labelmap.pbtxt')
-    with open(path_to_labelpbtxt,'w') as f:
-        for i, label in enumerate(labels):
-            f.write('item {\n' +
-                    '  id: %d\n' % (i + 1) +
-                    '  name: \'%s\'\n' % label +
-                    '}\n' +
-                    '\n')
-
-if __name__ == '__main__':
-    tf.compat.v1.app.run()
+main()

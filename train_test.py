@@ -1,7 +1,6 @@
 from pathlib import Path
 import random
 import os
-import sys
 
 # Define paths to image folders
 image_path = '/content/images/all'
@@ -43,17 +42,7 @@ print('Images moving to test: %d' % test_num)
 
 def move_file(move_me, destination_path):
     fn = move_me.name
-    base_fn = move_me.stem
-    parent_path = move_me.parent
-    xml_fn = base_fn + '.xml'
-    
-    # Move image file
     os.rename(move_me, os.path.join(destination_path, fn))
-    
-    # Move XML file if it exists
-    xml_file_path = os.path.join(parent_path, xml_fn)
-    if os.path.exists(xml_file_path):
-        os.rename(xml_file_path, os.path.join(destination_path, xml_fn))
 
 # Select 80% of files randomly and move them to train folder
 for i in range(train_num):
